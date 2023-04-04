@@ -8,6 +8,7 @@ import (
 )
 
 // #cgo pkg-config: libjxl
+// #cgo windows LDFLAGS: jxl.dll
 // #include <jxl/decode.h>
 // #include <jxl/codestream_header.h>
 // #include <jxl/types.h>
@@ -36,10 +37,25 @@ func Decode(r io.Reader) (image.Image, error) {
 		return nil, err
 	}
 	defer C.JxlDecoderDestroy(d)
+	C.JxlDecoderSubscribeEvents(d, C.JXL_DEC_BASIC_INFO|C.JXL_DEC_COLOR_ENCODING|C.JXL_DEC_FULL_IMAGE)
 	C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
 	status := C.JxlDecoderProcessInput(d)
-	if status == C.JXL_DEC_ERROR {
-		return nil, FormatError("header error")
+	for status != C.JXL_DEC_BASIC_INFO {
+		if status == C.JXL_DEC_NEED_MORE_INPUT {
+			remain := int(C.JxlDecoderReleaseInput(d))
+			if remain > 0 {
+				copy(data, data[len(data)-remain:])
+			}
+			n, err = io.ReadFull(r, data[remain:])
+			if err != nil && err != io.ErrUnexpectedEOF {
+				return nil, err
+			}
+			n += remain
+			C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
+		} else if status == C.JXL_DEC_ERROR {
+			return nil, FormatError("header error")
+		}
+		status = C.JxlDecoderProcessInput(d)
 	}
 	var info C.JxlBasicInfo
 	C.JxlDecoderGetBasicInfo(d, &info)
@@ -102,20 +118,27 @@ func Decode(r io.Reader) (image.Image, error) {
 			img = img2
 		}
 	}
-	status2 := C.JxlDecoderSetImageOutBuffer(d, &fmt, unsafe.Pointer(&outbuf[0]), C.ulonglong(len(outbuf)))
-	if status2 == C.JXL_DEC_ERROR {
-		return nil, FormatError("output buffer error")
-	}
-	for status == C.JXL_DEC_NEED_MORE_INPUT {
-		n, err = io.ReadFull(r, data)
-		if err != nil && err != io.ErrUnexpectedEOF {
-			return nil, err
+	for status != C.JXL_DEC_SUCCESS && status != C.JXL_DEC_FULL_IMAGE {
+		if status == C.JXL_DEC_NEED_IMAGE_OUT_BUFFER {
+			status = C.JxlDecoderSetImageOutBuffer(d, &fmt, unsafe.Pointer(&outbuf[0]), C.ulonglong(len(outbuf)))
+			if status == C.JXL_DEC_ERROR {
+				return nil, FormatError("output buffer error")
+			}
+		} else if status == C.JXL_DEC_NEED_MORE_INPUT {
+			remain := int(C.JxlDecoderReleaseInput(d))
+			if remain > 0 {
+				copy(data, data[len(data)-remain:])
+			}
+			n, err = io.ReadFull(r, data[remain:])
+			if err != nil && err != io.ErrUnexpectedEOF {
+				return nil, err
+			}
+			n += remain
+			C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
+		} else if status == C.JXL_DEC_ERROR {
+			return nil, FormatError("decoding error")
 		}
-		C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
 		status = C.JxlDecoderProcessInput(d)
-	}
-	if status == C.JXL_DEC_ERROR {
-		return nil, FormatError("header error")
 	}
 	return img, nil
 }
