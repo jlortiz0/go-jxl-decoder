@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	jxl "github.com/jlortiz0/go-jxl"
+	jxl "github.com/jlortiz0/go-jxl-decoder"
 )
 
 func TestDecodeConfig(t *testing.T) {
