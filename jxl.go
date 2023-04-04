@@ -38,7 +38,7 @@ func Decode(r io.Reader) (image.Image, error) {
 	}
 	defer C.JxlDecoderDestroy(d)
 	C.JxlDecoderSubscribeEvents(d, C.JXL_DEC_BASIC_INFO|C.JXL_DEC_COLOR_ENCODING|C.JXL_DEC_FULL_IMAGE)
-	C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
+	C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.size_t(n))
 	status := C.JxlDecoderProcessInput(d)
 	for status != C.JXL_DEC_BASIC_INFO {
 		if status == C.JXL_DEC_NEED_MORE_INPUT {
@@ -51,7 +51,7 @@ func Decode(r io.Reader) (image.Image, error) {
 				return nil, err
 			}
 			n += remain
-			C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
+			C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.size_t(n))
 		} else if status == C.JXL_DEC_ERROR {
 			return nil, FormatError("header error")
 		}
@@ -120,7 +120,7 @@ func Decode(r io.Reader) (image.Image, error) {
 	}
 	for status != C.JXL_DEC_SUCCESS && status != C.JXL_DEC_FULL_IMAGE {
 		if status == C.JXL_DEC_NEED_IMAGE_OUT_BUFFER {
-			status = C.JxlDecoderSetImageOutBuffer(d, &fmt, unsafe.Pointer(&outbuf[0]), C.ulonglong(len(outbuf)))
+			status = C.JxlDecoderSetImageOutBuffer(d, &fmt, unsafe.Pointer(&outbuf[0]), C.size_t(len(outbuf)))
 			if status == C.JXL_DEC_ERROR {
 				return nil, FormatError("output buffer error")
 			}
@@ -134,7 +134,7 @@ func Decode(r io.Reader) (image.Image, error) {
 				return nil, err
 			}
 			n += remain
-			C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
+			C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.size_t(n))
 		} else if status == C.JXL_DEC_ERROR {
 			return nil, FormatError("decoding error")
 		}
@@ -154,7 +154,7 @@ func DecodeConfig(r io.Reader) (image.Config, error) {
 		return image.Config{}, err
 	}
 	defer C.JxlDecoderDestroy(d)
-	C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.ulonglong(n))
+	C.JxlDecoderSetInput(d, (*C.uchar)(unsafe.Pointer(&data[0])), C.size_t(n))
 	C.JxlDecoderCloseInput(d)
 	status := C.JxlDecoderProcessInput(d)
 	if status == C.JXL_DEC_ERROR {
