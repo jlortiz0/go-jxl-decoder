@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// #cgo pkg-config: libjxl
+// #cgo linux darwin pkg-config: libjxl libjxl_threads
 // #cgo windows LDFLAGS: jxl.dll jxl_threads.dll
 // #include <jxl/decode.h>
 // #include <jxl/codestream_header.h>
