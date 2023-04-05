@@ -1,6 +1,6 @@
 # go-jxl-decode
 
-A Golang wrapper for (the decoding part of) libjxl. Made in 3 hours as an experiment. No multi-thread or multi-image support. Maybe someday.
+A Golang wrapper for (the decoding part of) libjxl. Made in 3 hours as an experiment.
 
 ## Building
 
