@@ -120,7 +120,7 @@ func (d *JxlDecoder) Info() (JxlInfo, error) {
 	output.W, output.H = int(info.xsize), int(info.ysize)
 	output.Orientation = int(info.orientation)
 	if output.Animated {
-		output.FrameDelay = (time.Second * time.Duration(info.animation.tps_numerator)) / time.Duration(info.animation.tps_denominator)
+		output.FrameDelay = (time.Millisecond * time.Duration(info.animation.tps_numerator)) / time.Duration(info.animation.tps_denominator)
 	}
 	return output, nil
 }
