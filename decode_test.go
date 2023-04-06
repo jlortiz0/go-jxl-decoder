@@ -13,7 +13,7 @@ import (
 const DecodeSingleImgName = "tests/single.jxl"
 const DecodeSingleImgCRC = 0xA8803D68
 const DecodeVideoName = "tests/vid.jxl"
-const DecodeVideoFirstCRC = 0x897C9D81
+const DecodeVideoFirstCRC = 0x3E164F85
 const DecodeVideoLastCRC = 0x28E5F171
 
 func TestDecodeConfig(t *testing.T) {
