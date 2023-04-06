@@ -1,27 +1,35 @@
 package gojxl
 
+import (
+	"image"
+	"image/color"
+	"io"
+	"math"
+	"unsafe"
+)
+
+// #cgo LDFLAGS: -lm
 // #include <jxl/encode.h>
 // #include <jxl/codestream_header.h>
 // #include <jxl/types.h>
 // #include <jxl/resizable_parallel_runner.h>
 // #include <stdint.h>
+// #include <math.h>
+// JxlEncoderStatus encoderProcess(JxlEncoder *p0, unsigned char *p1, size_t *p2) {
+//     return JxlEncoderProcessOutput(p0, &p1, p2);
+// }
 import "C"
-import (
-	"image"
-	"image/color"
-	"io"
-	"unsafe"
-)
 
 type EncodeError string
 
 func (e EncodeError) Error() string { return "jxl encode error: " + string(e) }
 
-const EncodeInfoError DecodeError = "failed to set info"
-const EncodeUnsupportedError DecodeError = "image type not supported"
-const EncodeClosedError DecodeError = "encoder is closed"
-const EncodeUninitializedError DecodeError = "info not set before writing"
-const EncodeDataError DecodeError = "unknown"
+const EncodeInfoError EncodeError = "failed to set info"
+const EncodeUnsupportedError EncodeError = "image type not supported"
+const EncodeClosedError EncodeError = "encoder is closed"
+const EncodeUninitializedError EncodeError = "info not set before writing"
+const EncodeInputError EncodeError = "failed to set input"
+const EncodeDataError EncodeError = "unknown"
 
 type JxlEncoder struct {
 	encoder     *C.JxlEncoder
@@ -56,6 +64,7 @@ func (e *JxlEncoder) Destroy() {
 		var fdata C.JxlFrameHeader
 		C.JxlEncoderSetFrameHeader(e.settings, &fdata)
 		buf := make([]byte, e.x*e.y*int(e.pxFormat.num_channels))
+		e.shouldClose = true
 		e.Write(buf)
 	}
 	C.JxlEncoderDestroy(e.encoder)
@@ -66,11 +75,14 @@ func (e *JxlEncoder) NextIsLast() {
 	e.shouldClose = true
 }
 
-func (e *JxlEncoder) SetInfo(x, y int, m color.Model, fps int) bool {
+func (e *JxlEncoder) SetInfo(x, y int, m color.Model, fps float64) bool {
 	var info C.JxlBasicInfo
 	C.JxlEncoderInitBasicInfo(&info)
 	info.xsize = C.uint32_t(x)
 	info.ysize = C.uint32_t(y)
+	info.intensity_target = 255
+	info.intrinsic_xsize = info.xsize
+	info.intrinsic_ysize = info.ysize
 	e.x, e.y = x, y
 	switch m {
 	case color.Gray16Model:
@@ -84,17 +96,30 @@ func (e *JxlEncoder) SetInfo(x, y int, m color.Model, fps int) bool {
 		fallthrough
 	case color.RGBAModel:
 		info.alpha_bits = info.bits_per_sample
+		info.num_extra_channels = 1
 		info.alpha_premultiplied = C.JXL_TRUE
 	case color.NRGBA64Model:
 		info.bits_per_sample = 16
 		fallthrough
 	case color.NRGBAModel:
 		info.alpha_bits = info.bits_per_sample
+		info.num_extra_channels = 1
 	}
-	if fps != 0 {
+	if fps > 0 {
 		info.have_animation = C.JXL_TRUE
-		info.animation.tps_numerator = 10000
-		info.animation.tps_denominator = C.uint32_t(fps)
+		var exp C.int
+		fl := float64(C.frexp(C.double(fps), &exp))
+		for fl != math.Floor(fl) {
+			fl *= 2
+			exp--
+		}
+		info.animation.tps_numerator = C.uint32_t(fl)
+		info.animation.tps_denominator = 1
+		if exp > 0 {
+			info.animation.tps_numerator <<= exp
+		} else {
+			info.animation.tps_denominator <<= -exp
+		}
 		e.shouldClose = false
 	} else {
 		e.shouldClose = true
@@ -112,12 +137,34 @@ func (e *JxlEncoder) SetInfo(x, y int, m color.Model, fps int) bool {
 	e.pxFormat = pxFormat
 	ok := C.JxlEncoderSetBasicInfo(e.encoder, &info)
 	if ok == C.JXL_ENC_SUCCESS {
+		e.settings = C.JxlEncoderFrameSettingsCreate(e.encoder, nil)
+		if e.settings == nil {
+			return false
+		}
 		var bDepth C.JxlBitDepth
 		bDepth.bits_per_sample = info.bits_per_sample
 		bDepth._type = C.JXL_BIT_DEPTH_FROM_PIXEL_FORMAT
 		ok = C.JxlEncoderSetFrameBitDepth(e.settings, &bDepth)
+		if ok == C.JXL_ENC_SUCCESS && !e.shouldClose {
+			var fdata C.JxlFrameHeader
+			fdata.duration = 1
+			ok = C.JxlEncoderSetFrameHeader(e.settings, &fdata)
+		}
 	}
 	return ok == C.JXL_ENC_SUCCESS
+}
+
+func writeHelper(w io.Writer, b []byte) error {
+	n := 0
+	l := len(b)
+	for n < l {
+		n2, err := w.Write(b[n : l-n])
+		if err != nil {
+			return err
+		}
+		n += n2
+	}
+	return nil
 }
 
 func (e *JxlEncoder) Write(b []byte) error {
@@ -127,40 +174,31 @@ func (e *JxlEncoder) Write(b []byte) error {
 	if e.closed {
 		return EncodeClosedError
 	}
-	C.JxlEncoderAddImageFrame(e.settings, &e.pxFormat, unsafe.Pointer(&b[0]), C.size_t(len(b)))
+	status := C.JxlEncoderAddImageFrame(e.settings, &e.pxFormat, unsafe.Pointer(&b[0]), C.size_t(len(b)))
+	if status != C.JXL_ENC_SUCCESS {
+		return EncodeInputError
+	}
 	if e.shouldClose {
 		C.JxlEncoderCloseInput(e.encoder)
 		e.closed = true
 	}
 	buf := make([]byte, block_size)
 	sz := C.size_t(len(buf))
-	bp := (*C.uchar)(unsafe.Pointer(&buf[0]))
-	status := C.JxlEncoderProcessOutput(e.encoder, &bp, &sz)
+	status = C.encoderProcess(e.encoder, (*C.uchar)(unsafe.Pointer(&buf[0])), &sz)
 	for status == C.JXL_ENC_NEED_MORE_OUTPUT {
-		n := 0
-		l := len(buf) - int(sz)
-		for n < l {
-			n2, err := e.w.Write(buf[n : l-n])
-			if err != nil {
-				return err
-			}
-			n += n2
+		err := writeHelper(e.w, buf[:len(buf)-int(sz)])
+		if err != nil {
+			return err
 		}
-		bp = (*C.uchar)(unsafe.Pointer(&buf[0]))
 		sz = C.size_t(len(buf))
-		status = C.JxlEncoderProcessOutput(e.encoder, &bp, &sz)
+		status = C.encoderProcess(e.encoder, (*C.uchar)(unsafe.Pointer(&buf[0])), &sz)
 	}
 	if status == C.JXL_ENC_ERROR {
 		return EncodeDataError
 	}
-	n := 0
-	l := len(buf) - int(sz)
-	for n < l {
-		n2, err := e.w.Write(buf[n : l-n])
-		if err != nil {
-			return err
-		}
-		n += n2
+	err := writeHelper(e.w, buf[:len(buf)-int(sz)])
+	if err != nil {
+		return err
 	}
 	return nil
 }

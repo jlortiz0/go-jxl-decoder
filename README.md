@@ -1,6 +1,6 @@
 # go-jxl-decode
 
-A Golang wrapper for (the decoding part of) libjxl. Made in 3 hours as an experiment.
+A Golang wrapper for libjxl.
 
 ## Building
 
@@ -12,6 +12,6 @@ On Linux, install `libbrotli-dev` and, if your distro has it, `libjxl-dev`. (If 
 
 ## Usage
 
-This library registers itself with `image` and additionally exports `Decode` and `DecodeConfig`, which work as you might expect.
+This library registers itself with `image` and additionally exports `Decode`, `DecodeConfig` and `Encode`, which work as you might expect. For more complex usage, such as multi-frame JXLs, use the `JxlEncoder` and `JxlDecoder` objects.
 
 Note that only `Gray`, `RGBA`, and `NRGBA` color models and their 16-bit counterparts are identitifed by the library.
