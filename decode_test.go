@@ -12,6 +12,9 @@ import (
 
 const DecodeSingleImgName = "tests/single.jxl"
 const DecodeSingleImgCRC = 0xA8803D68
+const DecodeSingleImg16CRC = 0xBA789AE9
+const DecodeSingleImgGCRC = 0x5A60E6F5
+const DecodeSingleImgG16CRC = 0x7A9459F0
 const DecodeVideoName = "tests/vid.jxl"
 const DecodeVideoFirstCRC = 0x3E164F85
 const DecodeVideoLastCRC = 0x28E5F171
@@ -46,6 +49,68 @@ func TestDecode(t *testing.T) {
 	}
 	if out.Sum32() != DecodeSingleImgCRC {
 		t.Error("crc does not match")
+	}
+}
+
+func TestDecode16(t *testing.T) {
+	f, err := os.Open("tests/single16.jxl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img, err := jxl.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := crc32.NewIEEE()
+	err = png.Encode(out, img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Sum32() != DecodeSingleImg16CRC {
+		t.Error("crc does not match")
+		t.Error(out.Sum32())
+	}
+}
+
+func TestDecodeG(t *testing.T) {
+	f, err := os.Open("tests/singleG.jxl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img, err := jxl.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := crc32.NewIEEE()
+	err = png.Encode(out, img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Sum32() != DecodeSingleImgGCRC {
+		t.Error("crc does not match")
+	}
+}
+
+func TestDecodeG16(t *testing.T) {
+	f, err := os.Open("tests/singleG16.jxl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img, err := jxl.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := crc32.NewIEEE()
+	err = png.Encode(out, img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Sum32() != DecodeSingleImgG16CRC {
+		t.Error("crc does not match")
+		t.Error(out.Sum32())
 	}
 }
 

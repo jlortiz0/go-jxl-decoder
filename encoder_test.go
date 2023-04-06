@@ -13,7 +13,8 @@ import (
 
 const EncodeSingleImageName = "tests/input.png"
 const EncodeSingleImageCRC = 0x903948ED
-const EncodeVideoCRC = 0xE900653C
+const EncodeVideoCRC = 0x5E62B87C
+const EncodeVideoWOCRC = 0xE900653C
 
 func TestEncode(t *testing.T) {
 	f, err := os.Open(EncodeSingleImageName)
@@ -94,11 +95,46 @@ func TestEncoderVideo(t *testing.T) {
 		offset2 := i2.PixOffset(0, i2.Bounds().Dy()-i-1)
 		copy(flipped[offset2:], i2.Pix[offset:offset+i2.Stride])
 	}
+	e.NextIsLast()
 	err = e.Write(flipped)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out.Sum32() != EncodeVideoCRC {
+		t.Error("crc does not match")
+	}
+}
+
+func TestEncoderVideoWOFinalize(t *testing.T) {
+	f, err := os.Open(EncodeSingleImageName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	i, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i2 := i.(*image.RGBA)
+	out := crc32.NewIEEE()
+	e := jxl.NewJxlEncoder(out)
+	defer e.Destroy()
+	e.SetInfo(i.Bounds().Dx(), i.Bounds().Dy(), color.RGBAModel, 0.5)
+	err = e.Write(i2.Pix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flipped := make([]byte, len(i2.Pix))
+	for i := 0; i < i2.Bounds().Dy(); i++ {
+		offset := i2.PixOffset(0, i)
+		offset2 := i2.PixOffset(0, i2.Bounds().Dy()-i-1)
+		copy(flipped[offset2:], i2.Pix[offset:offset+i2.Stride])
+	}
+	err = e.Write(flipped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Sum32() != EncodeVideoWOCRC {
 		t.Error("crc does not match")
 	}
 }

@@ -143,7 +143,7 @@ func (d *JxlDecoder) Read() ([]byte, error) {
 		sz += 1
 	}
 	var fmt C.JxlPixelFormat
-	fmt.endianness = C.JXL_NATIVE_ENDIAN
+	fmt.endianness = C.JXL_BIG_ENDIAN
 	fmt.num_channels = C.uint32_t(sz)
 	fmt.data_type = C.JXL_TYPE_UINT8
 	if info.BitDepth == 16 {
