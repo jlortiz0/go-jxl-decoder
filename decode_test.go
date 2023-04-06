@@ -1,6 +1,7 @@
 package gojxl_test
 
 import (
+	"hash/crc32"
 	"image"
 	"image/png"
 	"os"
@@ -9,8 +10,14 @@ import (
 	jxl "github.com/jlortiz0/go-jxl-decoder"
 )
 
+const DecodeSingleImgName = "tests/single.jxl"
+const DecodeSingleImgCRC = 0xA8803D68
+const DecodeVideoName = "tests/vid.jxl"
+const DecodeVideoFirstCRC = 0x897C9D81
+const DecodeVideoLastCRC = 0x28E5F171
+
 func TestDecodeConfig(t *testing.T) {
-	f, err := os.Open("test.jxl")
+	f, err := os.Open(DecodeSingleImgName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +30,7 @@ func TestDecodeConfig(t *testing.T) {
 }
 
 func TestDecode(t *testing.T) {
-	f, err := os.Open("test.jxl")
+	f, err := os.Open(DecodeSingleImgName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,19 +39,18 @@ func TestDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err = os.Create("test.png")
+	out := crc32.NewIEEE()
+	err = png.Encode(out, img)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	err = png.Encode(f, img)
-	if err != nil {
-		t.Fatal(err)
+	if out.Sum32() != DecodeSingleImgCRC {
+		t.Error("crc does not match")
 	}
 }
 
 func TestHitEnd(t *testing.T) {
-	f, err := os.Open("test.jxl")
+	f, err := os.Open(DecodeSingleImgName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +77,7 @@ func TestHitEnd(t *testing.T) {
 }
 
 func TestRegister(t *testing.T) {
-	f, err := os.Open("test.jxl")
+	f, err := os.Open(DecodeSingleImgName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +93,7 @@ func TestRegister(t *testing.T) {
 }
 
 func TestDecodeVideo(t *testing.T) {
-	f, err := os.Open("yeah.jxl")
+	f, err := os.Open(DecodeVideoName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,19 +109,18 @@ func TestDecodeVideo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err = os.Create("yeah.png")
+	out := crc32.NewIEEE()
+	err = png.Encode(out, &image.RGBA{Pix: prev, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	err = png.Encode(f, &image.RGBA{Pix: prev, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
-	if err != nil {
-		t.Fatal(err)
+	if out.Sum32() != DecodeVideoLastCRC {
+		t.Error("crc does not match")
 	}
 }
 
 func TestRewind(t *testing.T) {
-	f, err := os.Open("yeah.jxl")
+	f, err := os.Open(DecodeVideoName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,19 +140,18 @@ func TestRewind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err = os.Create("yeah2.png")
+	out := crc32.NewIEEE()
+	err = png.Encode(out, &image.RGBA{Pix: n, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	err = png.Encode(f, &image.RGBA{Pix: n, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
-	if err != nil {
-		t.Fatal(err)
+	if out.Sum32() != DecodeVideoFirstCRC {
+		t.Error("crc does not match")
 	}
 }
 
 func TestReset(t *testing.T) {
-	f, err := os.Open("yeah.jxl")
+	f, err := os.Open(DecodeVideoName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +161,7 @@ func TestReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err = os.Open("test.jxl")
+	f, err = os.Open(DecodeSingleImgName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,13 +172,12 @@ func TestReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err = os.Create("test2.png")
+	out := crc32.NewIEEE()
+	err = png.Encode(out, &image.RGBA{Pix: n, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	err = png.Encode(f, &image.RGBA{Pix: n, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
-	if err != nil {
-		t.Fatal(err)
+	if out.Sum32() != DecodeSingleImgCRC {
+		t.Error("crc does not match")
 	}
 }

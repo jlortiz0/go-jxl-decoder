@@ -14,15 +14,20 @@ import (
 // #include <jxl/codestream_header.h>
 // #include <jxl/types.h>
 // #include <jxl/resizable_parallel_runner.h>
+// #include <stdint.h>
 import "C"
 
 const jxlHeader = "\xff\x0a"
 const block_size = 4096 * 4
 const config_block_size = 2048
 
-type FormatError string
+type DecodeError string
 
-func (e FormatError) Error() string { return "invalid JPEG-XL format: " + string(e) }
+func (e DecodeError) Error() string { return "jxl decode error: " + string(e) }
+
+const DecodeHeaderError DecodeError = "invalid header"
+const DecodeInputError DecodeError = "unable to set input"
+const DecodeDataError DecodeError = "invalid body"
 
 func init() {
 	image.RegisterFormat("jxl", jxlHeader, Decode, DecodeConfig)
@@ -88,7 +93,7 @@ func (d *JxlDecoder) nextInput() error {
 	n += remain
 	status := C.JxlDecoderSetInput(d.decoder, (*C.uchar)(unsafe.Pointer(&d.buf[0])), C.size_t(n))
 	if status != C.JXL_DEC_SUCCESS {
-		return FormatError("error setting input")
+		return DecodeInputError
 	}
 	return nil
 }
@@ -101,7 +106,7 @@ func (d *JxlDecoder) Info() (JxlInfo, error) {
 		}
 		status := C.JxlDecoderProcessInput(d.decoder)
 		if status == C.JXL_DEC_ERROR {
-			return JxlInfo{}, FormatError("header error")
+			return JxlInfo{}, DecodeHeaderError
 		} else if status != C.JXL_DEC_NEED_MORE_INPUT {
 			d.hasInfo = true
 			break
@@ -120,7 +125,7 @@ func (d *JxlDecoder) Info() (JxlInfo, error) {
 	output.W, output.H = int(info.xsize), int(info.ysize)
 	output.Orientation = int(info.orientation)
 	if output.Animated {
-		output.FrameDelay = (time.Millisecond * time.Duration(info.animation.tps_numerator)) / time.Duration(info.animation.tps_denominator)
+		output.FrameDelay = (time.Millisecond / 10 * time.Duration(info.animation.tps_numerator)) / time.Duration(info.animation.tps_denominator)
 	}
 	return output, nil
 }
@@ -139,7 +144,7 @@ func (d *JxlDecoder) Read() ([]byte, error) {
 	}
 	var fmt C.JxlPixelFormat
 	fmt.endianness = C.JXL_NATIVE_ENDIAN
-	fmt.num_channels = C.uint(sz)
+	fmt.num_channels = C.uint32_t(sz)
 	fmt.data_type = C.JXL_TYPE_UINT8
 	if info.BitDepth == 16 {
 		sz *= 2
@@ -169,7 +174,7 @@ func (d *JxlDecoder) Read() ([]byte, error) {
 				return nil, err
 			}
 		} else if status == C.JXL_DEC_ERROR {
-			return nil, FormatError("decoding error")
+			return nil, DecodeDataError
 		}
 		status = C.JxlDecoderProcessInput(d.decoder)
 	}
