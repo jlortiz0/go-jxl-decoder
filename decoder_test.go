@@ -1,22 +1,20 @@
 package gojxl_test
 
 import (
-	"hash/crc32"
+	"encoding/binary"
 	"image"
 	"os"
 	"testing"
 
+	"github.com/devedge/imagehash"
 	jxl "github.com/jlortiz0/go-jxl-decoder"
 )
 
 const DecodeSingleImgName = "tests/single.jxl"
-const DecodeSingleImgCRC = 0xB91B2433
-const DecodeSingleImg16CRC = 0xD390EA1C
-const DecodeSingleImgGCRC = 0xBEF53CF7
-const DecodeSingleImgG16CRC = 0x9F6D9AE9
+const DecodeSingleImgHash uint64 = 0xe8c8989c9d98dcdb
 const DecodeVideoName = "tests/vid.jxl"
-const DecodeVideoFirstCRC = 0x59F24A92
-const DecodeVideoLastCRC = 0x9719908E
+const DecodeVideoFirstHash uint64 = 0xb269c9cccccc6830
+const DecodeVideoLastHash uint64 = 0x5a192d2c2c1cf870
 
 func TestDecodeConfig(t *testing.T) {
 	f, err := os.Open(DecodeSingleImgName)
@@ -41,10 +39,10 @@ func TestDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    i := img.(*image.NRGBA)
-    h := crc32.ChecksumIEEE(i.Pix) 
-    if h != DecodeSingleImgCRC {
-		t.Error("crc does not match", DecodeSingleImgCRC, h)
+	h2, _ := imagehash.DhashHorizontal(img, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != DecodeSingleImgHash {
+		t.Error("crc does not match", DecodeSingleImgHash, h)
 	}
 }
 
@@ -58,10 +56,10 @@ func TestDecode16(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    i := img.(*image.NRGBA64)
-    h := crc32.ChecksumIEEE(i.Pix) 
-    if h != DecodeSingleImg16CRC {
-		t.Error("crc does not match", DecodeSingleImg16CRC, h)
+	h2, _ := imagehash.DhashHorizontal(img, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != DecodeSingleImgHash {
+		t.Error("crc does not match", DecodeSingleImgHash, h)
 	}
 }
 
@@ -75,10 +73,10 @@ func TestDecodeG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    i := img.(*image.Gray)
-    h := crc32.ChecksumIEEE(i.Pix) 
-    if h != DecodeSingleImgGCRC {
-		t.Error("crc does not match", DecodeSingleImgGCRC, h)
+	h2, _ := imagehash.DhashHorizontal(img, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != DecodeSingleImgHash {
+		t.Error("crc does not match", DecodeSingleImgHash, h)
 	}
 }
 
@@ -92,10 +90,10 @@ func TestDecodeG16(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    i := img.(*image.Gray16)
-    h := crc32.ChecksumIEEE(i.Pix) 
-    if h != DecodeSingleImgG16CRC {
-		t.Error("crc does not match", DecodeSingleImgG16CRC, h)
+	h2, _ := imagehash.DhashHorizontal(img, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != DecodeSingleImgHash {
+		t.Error("crc does not match", DecodeSingleImgHash, h)
 	}
 }
 
@@ -149,6 +147,7 @@ func TestDecodeVideo(t *testing.T) {
 	}
 	defer f.Close()
 	d := jxl.NewJxlDecoder(f)
+	info, _ := d.Info()
 	prev, err := d.Read()
 	n := prev
 	for n != nil {
@@ -158,9 +157,10 @@ func TestDecodeVideo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    h := crc32.ChecksumIEEE(prev) 
-    if h != DecodeVideoLastCRC {
-		t.Error("crc does not match", DecodeVideoLastCRC, h)
+	h2, _ := imagehash.DhashHorizontal(&image.NRGBA{Rect: image.Rect(0, 0, info.W, info.H), Pix: prev, Stride: info.W * 4}, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != DecodeVideoLastHash {
+		t.Error("crc does not match", DecodeVideoLastHash, h)
 	}
 }
 
@@ -171,6 +171,7 @@ func TestRewind(t *testing.T) {
 	}
 	defer f.Close()
 	d := jxl.NewJxlDecoder(f)
+	info, _ := d.Info()
 	n, err := d.Read()
 	for n != nil {
 		n, err = d.Read()
@@ -184,9 +185,10 @@ func TestRewind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    h := crc32.ChecksumIEEE(n) 
-    if h != DecodeVideoFirstCRC {
-		t.Error("crc does not match", DecodeVideoFirstCRC, h)
+	h2, _ := imagehash.DhashHorizontal(&image.NRGBA{Rect: image.Rect(0, 0, info.W, info.H), Pix: n, Stride: info.W * 4}, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != DecodeVideoFirstHash {
+		t.Error("crc does not match", DecodeVideoFirstHash, h)
 	}
 }
 
@@ -207,12 +209,14 @@ func TestReset(t *testing.T) {
 	}
 	defer f.Close()
 	d.Reset(f)
+	info, _ := d.Info()
 	n, err := d.Read()
 	if err != nil {
 		t.Fatal(err)
 	}
-    h := crc32.ChecksumIEEE(n) 
-    if h != DecodeSingleImgCRC {
-		t.Error("crc does not match", DecodeSingleImgCRC, h)
+	h2, _ := imagehash.DhashHorizontal(&image.NRGBA{Rect: image.Rect(0, 0, info.W, info.H), Pix: n, Stride: info.W * 4}, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != DecodeSingleImgHash {
+		t.Error("crc does not match", DecodeSingleImgHash, h)
 	}
 }

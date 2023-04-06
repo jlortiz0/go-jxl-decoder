@@ -1,21 +1,22 @@
 package gojxl_test
 
 import (
-	"hash/crc32"
+	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
+	_ "image/png"
 	"io"
 	"os"
 	"testing"
-    "bytes"
-    _ "image/png"
 
+	"github.com/devedge/imagehash"
 	jxl "github.com/jlortiz0/go-jxl-decoder"
 )
 
 const EncodeSingleImageName = "tests/input.png"
-const EncodeSingleImageCRC = 0x7CFC11DC
-const EncodeVideoCRC = 0xC5061331
+const EncodeSingleImageHash uint64 = 0x8020c868e22668e8
+const EncodeVideoHash uint64 = 0xe86826e268c82080
 
 func TestEncode(t *testing.T) {
 	f, err := os.Open(EncodeSingleImageName)
@@ -27,16 +28,19 @@ func TestEncode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    buf := new(bytes.Buffer)
+	buf := new(bytes.Buffer)
 	err = jxl.Encode(buf, i)
 	if err != nil {
 		t.Fatal(err)
 	}
-    i, err = jxl.Decode(buf)
-    i2 := i.(*image.NRGBA)
-    h := crc32.ChecksumIEEE(i2.Pix)
-	if h != EncodeSingleImageCRC {
-		t.Error("crc does not match", EncodeSingleImageCRC, h)
+	i, err = jxl.Decode(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h2, _ := imagehash.DhashHorizontal(i, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != EncodeSingleImageHash {
+		t.Error("crc does not match", EncodeSingleImageHash, h)
 	}
 }
 
@@ -90,7 +94,7 @@ func TestEncoderVideo(t *testing.T) {
 	e.SetInfo(i.Bounds().Dx(), i.Bounds().Dy(), color.RGBAModel, 0.5)
 	err = e.Write(i2.Pix)
 	if err != nil {
-        e.Destroy()
+		e.Destroy()
 		t.Fatal(err)
 	}
 	flipped := make([]byte, len(i2.Pix))
@@ -102,20 +106,22 @@ func TestEncoderVideo(t *testing.T) {
 	e.NextIsLast()
 	err = e.Write(flipped)
 	if err != nil {
-        e.Destroy()
+		e.Destroy()
 		t.Fatal(err)
 	}
-    e.Destroy()
-    d := jxl.NewJxlDecoder(buf)
-    defer d.Destroy()
-    d.Read()
-    b, err := d.Read()
-    if err != nil {
-        t.Fatal(err)
-    }
-    h := crc32.ChecksumIEEE(b)
-	if h != EncodeVideoCRC {
-		t.Error("crc does not match", EncodeVideoCRC, h)
+	e.Destroy()
+	d := jxl.NewJxlDecoder(buf)
+	defer d.Destroy()
+	d.Read()
+	info, _ := d.Info()
+	b, err := d.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h2, _ := imagehash.DhashHorizontal(&image.RGBA{Rect: image.Rect(0, 0, info.W, info.H), Pix: b, Stride: info.W * 4}, 8)
+	h := binary.BigEndian.Uint64(h2)
+	if h != EncodeVideoHash {
+		t.Error("crc does not match", EncodeVideoHash, h)
 	}
 }
 
@@ -148,19 +154,19 @@ func TestEncoderVideoWOFinalize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    e.Destroy()
-    d := jxl.NewJxlDecoder(buf)
-    defer d.Destroy()
-    d.Read()
-    _, err = d.Read()
-    if err != nil {
-        t.Fatal(err)
-    }
-    n, err := d.Read()
-    if err != nil {
-        t.Fatal(err)
-    }
-    if n == nil {
-        t.Error("expected black frame, got nil")
-    }
+	e.Destroy()
+	d := jxl.NewJxlDecoder(buf)
+	defer d.Destroy()
+	d.Read()
+	_, err = d.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := d.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n == nil {
+		t.Error("expected black frame, got nil")
+	}
 }

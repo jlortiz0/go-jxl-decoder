@@ -1,0 +1,7 @@
+github.com/devedge/imagehash v0.0.0-20180324030135-7061aa3b4066 h1:+QbuEqZjC9bIWKkf73EQ5oaIA7g/lB6fE7uFuEV0SeY=
+github.com/devedge/imagehash v0.0.0-20180324030135-7061aa3b4066/go.mod h1:FdoOQDHSR0xYTQCl+G8ZhqsB5dKYbyxVWUoUFW7F0Lw=
+github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
+github.com/disintegration/imaging v1.6.2/go.mod h1:44/5580QXChDfwIclfc/PCwrr44amcmDAg8hxG0Ewe4=
+golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 h1:hVwzHzIUGRjiF7EcUjqNxk3NCfkPxbDKRdnNE1Rpg0U=
+golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
+golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
