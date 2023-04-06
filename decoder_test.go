@@ -3,7 +3,6 @@ package gojxl_test
 import (
 	"hash/crc32"
 	"image"
-	"image/png"
 	"os"
 	"testing"
 
@@ -11,13 +10,13 @@ import (
 )
 
 const DecodeSingleImgName = "tests/single.jxl"
-const DecodeSingleImgCRC = 0xA8803D68
-const DecodeSingleImg16CRC = 0xBA789AE9
-const DecodeSingleImgGCRC = 0x5A60E6F5
-const DecodeSingleImgG16CRC = 0x7A9459F0
+const DecodeSingleImgCRC = 0xB91B2433
+const DecodeSingleImg16CRC = 0xD390EA1C
+const DecodeSingleImgGCRC = 0xBEF53CF7
+const DecodeSingleImgG16CRC = 0x9F6D9AE9
 const DecodeVideoName = "tests/vid.jxl"
-const DecodeVideoFirstCRC = 0x3E164F85
-const DecodeVideoLastCRC = 0x28E5F171
+const DecodeVideoFirstCRC = 0x59F24A92
+const DecodeVideoLastCRC = 0x9719908E
 
 func TestDecodeConfig(t *testing.T) {
 	f, err := os.Open(DecodeSingleImgName)
@@ -42,13 +41,10 @@ func TestDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = png.Encode(out, img)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Sum32() != DecodeSingleImgCRC {
-		t.Error("crc does not match")
+    i := img.(*image.NRGBA)
+    h := crc32.ChecksumIEEE(i.Pix) 
+    if h != DecodeSingleImgCRC {
+		t.Error("crc does not match", DecodeSingleImgCRC, h)
 	}
 }
 
@@ -62,14 +58,10 @@ func TestDecode16(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = png.Encode(out, img)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Sum32() != DecodeSingleImg16CRC {
-		t.Error("crc does not match")
-		t.Error(out.Sum32())
+    i := img.(*image.NRGBA64)
+    h := crc32.ChecksumIEEE(i.Pix) 
+    if h != DecodeSingleImg16CRC {
+		t.Error("crc does not match", DecodeSingleImg16CRC, h)
 	}
 }
 
@@ -83,13 +75,10 @@ func TestDecodeG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = png.Encode(out, img)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Sum32() != DecodeSingleImgGCRC {
-		t.Error("crc does not match")
+    i := img.(*image.Gray)
+    h := crc32.ChecksumIEEE(i.Pix) 
+    if h != DecodeSingleImgGCRC {
+		t.Error("crc does not match", DecodeSingleImgGCRC, h)
 	}
 }
 
@@ -103,14 +92,10 @@ func TestDecodeG16(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = png.Encode(out, img)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Sum32() != DecodeSingleImgG16CRC {
-		t.Error("crc does not match")
-		t.Error(out.Sum32())
+    i := img.(*image.Gray16)
+    h := crc32.ChecksumIEEE(i.Pix) 
+    if h != DecodeSingleImgG16CRC {
+		t.Error("crc does not match", DecodeSingleImgG16CRC, h)
 	}
 }
 
@@ -120,7 +105,7 @@ func TestHitEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	d := jxl.NewJxlDecoder(f, 0)
+	d := jxl.NewJxlDecoder(f)
 	_, err = d.Read()
 	if err != nil {
 		t.Fatal(err)
@@ -163,8 +148,7 @@ func TestDecodeVideo(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	d := jxl.NewJxlDecoder(f, 0)
-	info, _ := d.Info()
+	d := jxl.NewJxlDecoder(f)
 	prev, err := d.Read()
 	n := prev
 	for n != nil {
@@ -174,13 +158,9 @@ func TestDecodeVideo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = png.Encode(out, &image.RGBA{Pix: prev, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Sum32() != DecodeVideoLastCRC {
-		t.Error("crc does not match")
+    h := crc32.ChecksumIEEE(prev) 
+    if h != DecodeVideoLastCRC {
+		t.Error("crc does not match", DecodeVideoLastCRC, h)
 	}
 }
 
@@ -190,8 +170,7 @@ func TestRewind(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	d := jxl.NewJxlDecoder(f, 0)
-	info, _ := d.Info()
+	d := jxl.NewJxlDecoder(f)
 	n, err := d.Read()
 	for n != nil {
 		n, err = d.Read()
@@ -205,13 +184,9 @@ func TestRewind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = png.Encode(out, &image.RGBA{Pix: n, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Sum32() != DecodeVideoFirstCRC {
-		t.Error("crc does not match")
+    h := crc32.ChecksumIEEE(n) 
+    if h != DecodeVideoFirstCRC {
+		t.Error("crc does not match", DecodeVideoFirstCRC, h)
 	}
 }
 
@@ -221,7 +196,7 @@ func TestReset(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	d := jxl.NewJxlDecoder(f, 0)
+	d := jxl.NewJxlDecoder(f)
 	_, err = d.Read()
 	if err != nil {
 		t.Fatal(err)
@@ -232,17 +207,12 @@ func TestReset(t *testing.T) {
 	}
 	defer f.Close()
 	d.Reset(f)
-	info, _ := d.Info()
 	n, err := d.Read()
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = png.Encode(out, &image.RGBA{Pix: n, Stride: 4 * info.W, Rect: image.Rect(0, 0, info.W, info.H)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Sum32() != DecodeSingleImgCRC {
-		t.Error("crc does not match")
+    h := crc32.ChecksumIEEE(n) 
+    if h != DecodeSingleImgCRC {
+		t.Error("crc does not match", DecodeSingleImgCRC, h)
 	}
 }

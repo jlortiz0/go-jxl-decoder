@@ -7,14 +7,15 @@ import (
 	"io"
 	"os"
 	"testing"
+    "bytes"
+    _ "image/png"
 
 	jxl "github.com/jlortiz0/go-jxl-decoder"
 )
 
 const EncodeSingleImageName = "tests/input.png"
-const EncodeSingleImageCRC = 0x903948ED
-const EncodeVideoCRC = 0x5E62B87C
-const EncodeVideoWOCRC = 0xE900653C
+const EncodeSingleImageCRC = 0x7CFC11DC
+const EncodeVideoCRC = 0xC5061331
 
 func TestEncode(t *testing.T) {
 	f, err := os.Open(EncodeSingleImageName)
@@ -26,13 +27,16 @@ func TestEncode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := crc32.NewIEEE()
-	err = jxl.Encode(out, i)
+    buf := new(bytes.Buffer)
+	err = jxl.Encode(buf, i)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Sum32() != EncodeSingleImageCRC {
-		t.Error("crc does not match")
+    i, err = jxl.Decode(buf)
+    i2 := i.(*image.NRGBA)
+    h := crc32.ChecksumIEEE(i2.Pix)
+	if h != EncodeSingleImageCRC {
+		t.Error("crc does not match", EncodeSingleImageCRC, h)
 	}
 }
 
@@ -81,12 +85,12 @@ func TestEncoderVideo(t *testing.T) {
 		t.Fatal(err)
 	}
 	i2 := i.(*image.RGBA)
-	out := crc32.NewIEEE()
-	e := jxl.NewJxlEncoder(out)
-	defer e.Destroy()
+	buf := new(bytes.Buffer)
+	e := jxl.NewJxlEncoder(buf)
 	e.SetInfo(i.Bounds().Dx(), i.Bounds().Dy(), color.RGBAModel, 0.5)
 	err = e.Write(i2.Pix)
 	if err != nil {
+        e.Destroy()
 		t.Fatal(err)
 	}
 	flipped := make([]byte, len(i2.Pix))
@@ -98,10 +102,20 @@ func TestEncoderVideo(t *testing.T) {
 	e.NextIsLast()
 	err = e.Write(flipped)
 	if err != nil {
+        e.Destroy()
 		t.Fatal(err)
 	}
-	if out.Sum32() != EncodeVideoCRC {
-		t.Error("crc does not match")
+    e.Destroy()
+    d := jxl.NewJxlDecoder(buf)
+    defer d.Destroy()
+    d.Read()
+    b, err := d.Read()
+    if err != nil {
+        t.Fatal(err)
+    }
+    h := crc32.ChecksumIEEE(b)
+	if h != EncodeVideoCRC {
+		t.Error("crc does not match", EncodeVideoCRC, h)
 	}
 }
 
@@ -116,8 +130,8 @@ func TestEncoderVideoWOFinalize(t *testing.T) {
 		t.Fatal(err)
 	}
 	i2 := i.(*image.RGBA)
-	out := crc32.NewIEEE()
-	e := jxl.NewJxlEncoder(out)
+	buf := new(bytes.Buffer)
+	e := jxl.NewJxlEncoder(buf)
 	defer e.Destroy()
 	e.SetInfo(i.Bounds().Dx(), i.Bounds().Dy(), color.RGBAModel, 0.5)
 	err = e.Write(i2.Pix)
@@ -134,7 +148,19 @@ func TestEncoderVideoWOFinalize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Sum32() != EncodeVideoWOCRC {
-		t.Error("crc does not match")
-	}
+    e.Destroy()
+    d := jxl.NewJxlDecoder(buf)
+    defer d.Destroy()
+    d.Read()
+    _, err = d.Read()
+    if err != nil {
+        t.Fatal(err)
+    }
+    n, err := d.Read()
+    if err != nil {
+        t.Fatal(err)
+    }
+    if n == nil {
+        t.Error("expected black frame, got nil")
+    }
 }

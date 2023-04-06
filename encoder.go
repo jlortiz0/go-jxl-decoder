@@ -69,6 +69,8 @@ func (e *JxlEncoder) Destroy() {
 	}
 	C.JxlEncoderDestroy(e.encoder)
 	C.JxlResizableParallelRunnerDestroy(e.runner)
+    e.encoder = nil
+    e.runner = nil
 }
 
 func (e *JxlEncoder) NextIsLast() {

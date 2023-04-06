@@ -19,7 +19,6 @@ import "C"
 
 const jxlHeader = "\xff\x0a"
 const block_size = 4096 * 4
-const config_block_size = 2048
 
 type DecodeError string
 
@@ -54,10 +53,7 @@ type JxlInfo struct {
 	FrameDelay         time.Duration
 }
 
-func NewJxlDecoder(r io.Reader, blockSize int) *JxlDecoder {
-	if blockSize == 0 {
-		blockSize = block_size
-	}
+func NewJxlDecoder(r io.Reader) *JxlDecoder {
 	d := new(JxlDecoder)
 	runner, err := C.JxlResizableParallelRunnerCreate(nil)
 	if runner == nil {
@@ -71,7 +67,7 @@ func NewJxlDecoder(r io.Reader, blockSize int) *JxlDecoder {
 	C.JxlDecoderSetParallelRunner(d2, (*[0]byte)(C.JxlResizableParallelRunner), runner)
 	C.JxlDecoderSubscribeEvents(d2, C.JXL_DEC_BASIC_INFO|C.JXL_DEC_FULL_IMAGE)
 	d.decoder = d2
-	d.buf = make([]byte, blockSize)
+	d.buf = make([]byte, block_size)
 	d.r = r
 	return d
 }
@@ -79,6 +75,8 @@ func NewJxlDecoder(r io.Reader, blockSize int) *JxlDecoder {
 func (d *JxlDecoder) Destroy() {
 	C.JxlDecoderDestroy(d.decoder)
 	C.JxlResizableParallelRunnerDestroy(d.runner)
+    d.decoder = nil
+    d.runner = nil
 }
 
 func (d *JxlDecoder) nextInput() error {
@@ -200,7 +198,7 @@ func (d *JxlDecoder) Rewind() {
 }
 
 func Decode(r io.Reader) (image.Image, error) {
-	d := NewJxlDecoder(r, 0)
+	d := NewJxlDecoder(r)
 	defer d.Destroy()
 	info, err := d.Info()
 	if err != nil {
@@ -257,7 +255,7 @@ func Decode(r io.Reader) (image.Image, error) {
 }
 
 func DecodeConfig(r io.Reader) (image.Config, error) {
-	d := NewJxlDecoder(r, config_block_size)
+	d := NewJxlDecoder(r)
 	defer d.Destroy()
 	info, err := d.Info()
 	if err != nil {
