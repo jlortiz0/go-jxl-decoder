@@ -5,6 +5,7 @@ import (
 	"image"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/devedge/imagehash"
 	jxl "github.com/jlortiz0/go-jxl-decoder"
@@ -153,6 +154,9 @@ func TestDecodeVideo(t *testing.T) {
 	for n != nil {
 		prev = n
 		n, err = d.Read()
+		if d.FrameDuration() != 33*time.Millisecond {
+			t.Error("frame duration mismatch, expected 33 got", d.FrameDuration())
+		}
 	}
 	if err != nil {
 		t.Fatal(err)

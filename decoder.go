@@ -33,12 +33,14 @@ func init() {
 }
 
 type JxlDecoder struct {
-	decoder *C.JxlDecoder
-	runner  unsafe.Pointer
-	buf     []byte
-	r       io.Reader
-	hasInfo bool
-	hitEnd  bool
+	decoder      *C.JxlDecoder
+	runner       unsafe.Pointer
+	buf          []byte
+	r            io.Reader
+	hasInfo      bool
+	hitEnd       bool
+	lastFrameDur time.Duration
+	durFrac      time.Duration
 }
 
 type JxlInfo struct {
@@ -50,7 +52,6 @@ type JxlInfo struct {
 	Orientation        int
 	PreviewH, PreviewW int
 	Animated           bool
-	FrameDelay         time.Duration
 }
 
 func NewJxlDecoder(r io.Reader) *JxlDecoder {
@@ -65,7 +66,7 @@ func NewJxlDecoder(r io.Reader) *JxlDecoder {
 		panic(err)
 	}
 	C.JxlDecoderSetParallelRunner(d2, (*[0]byte)(C.JxlResizableParallelRunner), runner)
-	C.JxlDecoderSubscribeEvents(d2, C.JXL_DEC_BASIC_INFO|C.JXL_DEC_FULL_IMAGE)
+	C.JxlDecoderSubscribeEvents(d2, C.JXL_DEC_BASIC_INFO|C.JXL_DEC_FRAME|C.JXL_DEC_FULL_IMAGE)
 	d.decoder = d2
 	d.buf = make([]byte, block_size)
 	d.r = r
@@ -75,8 +76,8 @@ func NewJxlDecoder(r io.Reader) *JxlDecoder {
 func (d *JxlDecoder) Destroy() {
 	C.JxlDecoderDestroy(d.decoder)
 	C.JxlResizableParallelRunnerDestroy(d.runner)
-    d.decoder = nil
-    d.runner = nil
+	d.decoder = nil
+	d.runner = nil
 }
 
 func (d *JxlDecoder) nextInput() error {
@@ -123,9 +124,13 @@ func (d *JxlDecoder) Info() (JxlInfo, error) {
 	output.W, output.H = int(info.xsize), int(info.ysize)
 	output.Orientation = int(info.orientation)
 	if output.Animated {
-		output.FrameDelay = time.Second / time.Duration(info.animation.tps_numerator) * time.Duration(info.animation.tps_denominator)
+		d.durFrac = time.Second / time.Duration(info.animation.tps_numerator) * time.Duration(info.animation.tps_denominator)
 	}
 	return output, nil
+}
+
+func (d *JxlDecoder) FrameDuration() time.Duration {
+	return d.lastFrameDur
 }
 
 func (d *JxlDecoder) Read() ([]byte, error) {
@@ -173,6 +178,10 @@ func (d *JxlDecoder) Read() ([]byte, error) {
 			}
 		} else if status == C.JXL_DEC_ERROR {
 			return nil, DecodeDataError
+		} else if status == C.JXL_DEC_FRAME && d.durFrac != 0 {
+			var header C.JxlFrameHeader
+			C.JxlDecoderGetFrameHeader(d.decoder, &header)
+			d.lastFrameDur = time.Duration(header.duration) * d.durFrac
 		}
 		status = C.JxlDecoderProcessInput(d.decoder)
 	}
